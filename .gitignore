@@ -1,0 +1,25 @@
+# ─── IMAM DOULA: 3D PORTFOLIO ───
+# OS Trash
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Deployment / Temp items
+node_modules/
+dist/
+build/
+.env
+.gemini/
+.agent/
+.agents/
+.brain/
+*.log

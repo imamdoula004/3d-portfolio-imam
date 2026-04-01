@@ -15,11 +15,11 @@ try {
 
   if (!isMobile) {
     lenis = new Lenis({
-      lerp: 0.1, // Adjusted for stability
-      duration: 1.2,
+      lerp: 0.5, // ABSOLUTE-SPEED: 2x faster than snappy, near-native response
+      duration: 0.4, // Instant stop
       smoothWheel: true,
-      wheelMultiplier: 1,
-      smoothTouch: false,
+      wheelMultiplier: 1.0, // Pure precision
+      syncTouch: true,
     });
   }
 } catch (error) {
@@ -37,7 +37,8 @@ if (lenis) {
     lenis.raf(time * 1000);
   });
 
-  gsap.ticker.lagSmoothing(0);
+  // Balanced lag smoothing for stability on older hardware
+  gsap.ticker.lagSmoothing(1000, 16); 
 }
 
 
@@ -45,14 +46,14 @@ if (lenis) {
 if (lenis) {
   lenis.on('scroll', (e) => {
     // Update Navbar
-    if (e.animatedScroll > 60) {
+    if (window.scrollY > 50) {
       navbar.classList.add('scrolled');
     } else {
       navbar.classList.remove('scrolled');
     }
 
-    // Velocity-based optimizations
-    if (Math.abs(e.velocity) > 0.1) {
+    // Velocity-based optimizations (Reduced frequency of class toggles)
+    if (Math.abs(e.velocity) > 0.5) {
       document.body.classList.add('is-scrolling');
     } else {
       document.body.classList.remove('is-scrolling');
@@ -64,18 +65,29 @@ if (lenis) {
 // ─── Preloader ───────────────────────────────────────────
 
 
+const startTime = Date.now();
+const MIN_PRELOADER_TIME = 1500; // Smart Eager Floor
+
 const hidePreloader = () => {
   const preloader = document.getElementById('preloader');
-  if (preloader && !preloader.classList.contains('hidden')) {
-    preloader.classList.add('hidden');
-    // Ensure scroll is enabled if it was locked
-    document.documentElement.classList.remove('lenis-stopped');
-  }
+  const elapsed = Date.now() - startTime;
+  const remaining = Math.max(0, MIN_PRELOADER_TIME - elapsed);
+
+  setTimeout(() => {
+    if (preloader && !preloader.classList.contains('hidden')) {
+      preloader.classList.add('hidden');
+      // Ensure scroll is enabled if it was locked
+      document.documentElement.classList.remove('lenis-stopped');
+      document.body.style.overflow = ''; 
+    }
+  }, remaining);
 };
 
-// Hide on window load OR after 2.5 seconds (whichever is first)
+// Hide on window load with a smart floor
 window.addEventListener('load', hidePreloader);
-setTimeout(hidePreloader, 2500);
+
+// Emergency Fail-Safe: Force hide after 5s if load fails
+setTimeout(hidePreloader, 5000);
 
 
 // ─── Navbar Scroll Effect ────────────────────────────────
@@ -119,11 +131,11 @@ navLinks.addEventListener('touchstart', (e) => {
 }, { passive: true });
 
 navLinks.addEventListener('touchend', (e) => {
-  const touchEndX = e.changedTouches[0].screenX;
-  if (touchStartX - touchEndX > 50) { // Swipe left detected
-    closeNav();
-  }
+  touchEndX = e.changedTouches[0].screenX;
+  handleSwipe();
 }, { passive: true });
+
+// Navbar scroll effects are handled in the main Lenis loop at the top for better performance.
 
 // Scroll to Close logic
 let lastScrollY = window.scrollY;
@@ -340,13 +352,23 @@ function observeSplineWatermark(viewer) {
   }
 }
 
+// ─── Hardware-Based Quality Detection ──────────
+const isLowEnd = (navigator.deviceMemory && navigator.deviceMemory < 4) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency < 4);
+
 // ─── Aggressive Spline Culling (Visibility Based) ──────── 
 document.querySelectorAll('spline-viewer').forEach(viewer => {
+  // Optimization for older computers: Lower pixel density
+  if (isLowEnd) {
+    viewer.setAttribute('render-config', JSON.stringify({ dpr: 1 }));
+    console.log('Low-end device detected: Spline Quality throttled for stability.');
+  }
+
   // Ensure we observe the watermark removal
   observeSplineWatermark(viewer);
 
   // Check if it's a fullscreen background (fixed)
-  const isFixed = window.getComputedStyle(viewer.parentElement).position === 'fixed';
+  const parentStyle = window.getComputedStyle(viewer.parentElement);
+  const isFixed = parentStyle.position === 'fixed';
 
   if (isFixed) {
     // Background models should ALWAYS be visible and never culled
@@ -355,37 +377,43 @@ document.querySelectorAll('spline-viewer').forEach(viewer => {
     return;
   }
 
-  // TITANIC FIX: Zero-Reflow Visibility Culling for non-fixed models
+  // Total Scoped Culling for non-fixed models: Use visibility + display to drop GPU layers
   ScrollTrigger.create({
     trigger: viewer,
-    start: "top bottom+=1000", 
-    end: "bottom top-=1000",
+    start: "top bottom+=50", // INSTANT CULLING: 50px threshold
+    end: "bottom top-=50",
     onEnter: () => {
-      viewer.style.visibility = 'visible';
+      viewer.style.display = 'block';
       viewer.style.opacity = '1';
+      viewer.style.visibility = 'visible';
     },
     onLeave: () => {
-      viewer.style.visibility = 'hidden';
+      viewer.style.display = 'none';
       viewer.style.opacity = '0';
+      viewer.style.visibility = 'hidden';
     },
     onEnterBack: () => {
-      viewer.style.visibility = 'visible';
+      viewer.style.display = 'block';
       viewer.style.opacity = '1';
+      viewer.style.visibility = 'visible';
     },
     onLeaveBack: () => {
-      viewer.style.visibility = 'hidden';
+      viewer.style.display = 'none';
       viewer.style.opacity = '0';
+      viewer.style.visibility = 'hidden';
     }
   });
 
-  // Initial state check
+  // Initial state check — Immediate culling
   const rect = viewer.getBoundingClientRect();
-  if (rect.top < window.innerHeight + 1000 && rect.bottom > -1000) {
-    viewer.style.visibility = 'visible';
+  if (rect.top < window.innerHeight + 50 && rect.bottom > -50) {
+    viewer.style.display = 'block';
     viewer.style.opacity = '1';
+    viewer.style.visibility = 'visible';
   } else {
-    viewer.style.visibility = 'hidden';
+    viewer.style.display = 'none';
     viewer.style.opacity = '0';
+    viewer.style.visibility = 'hidden';
   }
 });
 

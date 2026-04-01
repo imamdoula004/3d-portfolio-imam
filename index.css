@@ -60,6 +60,22 @@ html.lenis, html.lenis body {
   overscroll-behavior: contain;
 }
 
+/* ─── Absolute Speed Performance Overhaul ─── */
+/* Disable ALL expensive painting and layout recalculations during active scroll */
+body.is-scrolling * {
+  pointer-events: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  filter: none !important;
+  box-shadow: none !important;
+  transition: none !important;
+  animation-play-state: paused !important;
+}
+
+body.is-scrolling {
+  pointer-events: auto !important;
+}
+
 .lenis.lenis-stopped {
   overflow: hidden;
 }
@@ -104,6 +120,11 @@ img { max-width: 100%; display: block; }
   overflow: hidden;
   transform: translateZ(0);
   background: transparent;
+  contain: paint layout; /* Isolate repaints */
+  will-change: transform; /* Force GPU layer */
+  content-visibility: auto; /* Absolute Speed: Skip layout for off-screen */
+  contain-intrinsic-size: 1px 1000px;
+  backface-visibility: hidden; /* GPU stability */
 }
 
 
@@ -122,6 +143,7 @@ img { max-width: 100%; display: block; }
   opacity: 1 !important;
   transform: none !important;
   visibility: visible !important;
+  will-change: transform, opacity;
 }
 
 
@@ -198,6 +220,7 @@ img { max-width: 100%; display: block; }
 /* Performance Mode: No complex filters during motion */
 body.is-scrolling .navbar.scrolled {
   background: #050510;
+  backdrop-filter: none !important;
 }
 
 
@@ -304,6 +327,24 @@ body.is-scrolling .navbar.scrolled {
   position: relative;
   overflow: hidden;
   background: var(--bg-primary);
+  /* Smart Preloading Skeleton */
+  background: linear-gradient(
+    135deg, 
+    #050510 0%, 
+    #0c0c1e 40%, 
+    #050510 100%
+  );
+  background-size: 200% 200%;
+  animation: skeletonGradient 8s ease infinite;
+  content-visibility: auto;
+  contain-intrinsic-size: 100vh;
+  contain: paint layout; /* Isolate heavy 3D rendering */
+}
+
+@keyframes skeletonGradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 .spline-fullscreen spline-viewer {
@@ -347,6 +388,7 @@ body.is-scrolling .navbar.scrolled {
   /* Titanic Fix: Force UI elements to a higher GPU layer */
   transform: translateZ(50px);
   will-change: transform, opacity;
+  backface-visibility: hidden; /* Stabilize Layers */
 }
 
 /* Hero scene: scroll-driven zoom — forced visibility for the rescue */
